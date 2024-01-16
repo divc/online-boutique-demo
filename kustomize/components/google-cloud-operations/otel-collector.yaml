@@ -41,10 +41,10 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-              - all
+              - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: busybox:latest
+        image: busybox:latest@sha256:ba76950ac9eaa407512c9d859cea48114eeff8a6f12ebaa5d32ce79d4a017dd8
         command:
         - '/bin/sh'
         - '-c'
@@ -63,12 +63,12 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-              - all
+              - ALL
           privileged: false
           readOnlyRootFilesystem: true
         args:
         - --config=/conf/collector-gateway-config.yaml
-        image: otel/opentelemetry-collector-contrib:0.62.0
+        image: otel/opentelemetry-collector-contrib:0.91.0@sha256:894dea0499cdcf083e30bd5352ef5c8f6ed2a4a928b1d3f995b7571b41eb9f08
         volumeMounts:
         - name: collector-gateway-config
           mountPath: /conf

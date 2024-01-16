@@ -11,11 +11,13 @@ To use `NetworkPolicies` on a local cluster such as [minikube](https://minikube.
 To automate the deployment of Online Boutique integrated with fine granular `NetworkPolicies` (one per `Deployment`), you can leverage the following variation with [Kustomize](../..).
 
 From the `kustomize/` folder at the root level of this repository, execute this command:
+
 ```bash
 kustomize edit add component components/network-policies
 ```
 
 This will update the `kustomize/kustomization.yaml` file which could be similar to:
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -28,11 +30,13 @@ components:
 You can locally render these manifests by running `kubectl kustomize .` as well as deploying them by running `kubectl apply -k .`.
 
 Once deployed, you can verify that the `NetworkPolicies` are successfully deployed:
+
 ```bash
 kubectl get networkpolicy
 ```
 
 The output could be similar to:
+
 ```output
 NAME                    POD-SELECTOR                AGE
 adservice               app=adservice               2m58s
@@ -50,7 +54,7 @@ redis-cart              app=redis-cart              2m58s
 shippingservice         app=shippingservice         2m58s
 ```
 
-_Note: `Egress` is wide open in these `NetworkPolicies` . In our case, we do this is on purpose because there are multiple egress destinations to take into consideration like the Kubernetes DNS, Istio control plane (`istiod`), Cloud Trace API, Cloud Profiler API, Cloud Debugger API, etc._
+_Note: `Egress` is wide open in these `NetworkPolicies` . In our case, we do this is on purpose because there are multiple egress destinations to take into consideration like the Kubernetes DNS, Istio control plane (`istiod`), Cloud Trace API, Cloud Profiler API, etc._
 
 ## Related Resources
 

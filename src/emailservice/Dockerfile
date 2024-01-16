@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.9.15-slim as base
+FROM python:3.10.13-slim@sha256:1d517e04d033a04d86f7de57bf41cae166ca362b37a1cb229e326bc1d754db55 as base
 
 FROM base as builder
 
@@ -21,16 +21,11 @@ RUN apt-get -qq update \
         wget g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Download the grpc health probe
-RUN GRPC_HEALTH_PROBE_VERSION=v0.4.14 && \
-    wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /bin/grpc_health_probe
-
 # get packages
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-FROM base as without-grpc-health-probe-bin
+FROM base
 # Enable unbuffered logging
 ENV PYTHONUNBUFFERED=1
 # Enable Profiler
@@ -39,14 +34,10 @@ ENV ENABLE_PROFILER=1
 WORKDIR /email_server
 
 # Grab packages from builder
-COPY --from=builder /usr/local/lib/python3.9/ /usr/local/lib/python3.9/
+COPY --from=builder /usr/local/lib/python3.10/ /usr/local/lib/python3.10/
 
 # Add the application
 COPY . .
 
 EXPOSE 8080
 ENTRYPOINT [ "python", "email_server.py" ]
-
-FROM without-grpc-health-probe-bin
-
-COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe

@@ -1,3 +1,4 @@
+#! /bin/bash
 # Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,10 +79,55 @@ function evalTest() {
     printf "$expected is ok\n"
 }
 
+function generateProject(){
+    local __resultvar
+    local __STACKSUFFIX
+    local __BA
+    local __RANDOMSUFFIX
+    local __DATELABEL
+    local PROJECTID
+    local current
+
+
+    __resultvar=$1
+    __STACKSUFFIX=$2
+    __BA=$3
+    __RANDOMSUFFIX=$(
+        LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 8
+        echo
+    )
+    __DATELABEL=$(date +%F)
+    PROJECTID=ds-test-$__STACKSUFFIX-$__RANDOMSUFFIX
+    current=$(gcloud config list account --format "value(core.account)")
+    # shellcheck disable=SC2034
+    GOOGLE_APPLICATION_CREDENTIALS=.deploystack/creds.json
+
+    gcloud projects create "$PROJECTID" --labels="deploystack-disposable-test-project=$__DATELABEL" --folder="155265971980"
+    
+    gcloud auth activate-service-account --project="$PROJECTID" --key-file=.deploystack/creds.json -q
+    gcloud config set account test-runner@ds-tester-helper.iam.gserviceaccount.com -q
+
+    gcloud beta billing projects link "$PROJECTID" --billing-account="$__BA" -q
+    gcloud config set account "$current" -q
+    eval "$__resultvar"="'$PROJECTID'"
+    
+}
+
 # END DON'T REMOVE FROM test script.
 
+suffix=ms
+
+# This is only needed if you tests fail alot because of overlapping runs of the
+# same set of tests.
+section_open "Generate random test project"
+    generateProject PROJECT "$suffix" "$BA"
+section_close
+
+# We need to force the use of gke-gcloud-auth-plugin (for GKE authentication)
+# if we're using kubectl 1.25 or lower.
+export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+
 DIR="terraform"
-get_project_id PROJECT
 gcloud services enable cloudresourcemanager.googleapis.com --project=$PROJECT
 REGION="us-central1"
 NAME="online-boutique"
@@ -92,7 +138,13 @@ MEMORYSTORE="false"
 gcloud config set project ${PROJECT}
 
 terraform -chdir="$DIR" init
-terraform -chdir="$DIR" apply -auto-approve -var gcp_project_id="${PROJECT}" -var name="${NAME}" -var region="${REGION}" -var namespace="${NAMESPACE}"  -var filepath_manifest="${FILEPATH_MANIFEST}" -var memorystore="${MEMORYSTORE}"
+terraform -chdir="$DIR" apply -auto-approve \
+    -var gcp_project_id="${PROJECT}" \
+    -var name="${NAME}" \
+    -var region="${REGION}" \
+    -var namespace="${NAMESPACE}"  \
+    -var filepath_manifest="${FILEPATH_MANIFEST}" \
+    -var memorystore="${MEMORYSTORE}"
 
 section_open "Testing Google Kubernetes Engine cluster exists"
     evalTest 'gcloud container clusters describe online-boutique --format="value(name)" --region $REGION' "online-boutique"
@@ -112,7 +164,7 @@ section_open "Testing Online Boutique's services are running"
     evalTest "kubectl get deployment shippingservice --no-headers -o=name 2> /dev/null"  "deployment.apps/shippingservice"
 section_close
 
-sleep 60
+sleep 120
 
 ENDPOINT=$( kubectl get service frontend-external --no-headers 2> /dev/null | awk '{print $4}')
 
@@ -120,10 +172,33 @@ section_open "Testing Online Boutique's front-end is working"
     evalTest 'curl -s -o /dev/null -w "%{http_code}" $ENDPOINT' "200"
 section_close
 
-terraform -chdir="$DIR" destroy --auto-approve -var gcp_project_id="${PROJECT}" -var name="${NAME}" -var region="${REGION}" -var namespace="${NAMESPACE}"  -var filepath_manifest="${FILEPATH_MANIFEST}" -var memorystore="${MEMORYSTORE}"
+# Uncomment the line: "deletion_protection = false"
+sed -i "s/# deletion_protection/deletion_protection/g" ${DIR}/main.tf
+terraform -chdir="$DIR" apply -auto-approve \
+    -var gcp_project_id="${PROJECT}" \
+    -var name="${NAME}" \
+    -var region="${REGION}" \
+    -var namespace="${NAMESPACE}"  \
+    -var filepath_manifest="${FILEPATH_MANIFEST}" \
+    -var memorystore="${MEMORYSTORE}"
+
+terraform -chdir="$DIR" destroy -auto-approve \
+    -var gcp_project_id="${PROJECT}" \
+    -var name="${NAME}" \
+    -var region="${REGION}" \
+    -var namespace="${NAMESPACE}"  \
+    -var filepath_manifest="${FILEPATH_MANIFEST}" \
+    -var memorystore="${MEMORYSTORE}"
 
 section_open "Testing Google Kubernetes Engine cluster does NOT exist"
     evalTest 'gcloud container clusters describe online-boutique --format="value(name)" --region $REGION' "EXPECTERROR"
+section_close
+
+# This is only needed if you tests fail alot because of overlapping runs of the
+# same set of tests. Really don't do this if you don't want to severely irritate
+# @tpryan
+section_open "Delete Test Project"
+    gcloud projects delete $PROJECT -q
 section_close
 
 printf "$DIVIDER"

@@ -39,10 +39,10 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
-                - all
+                - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/frontend:v0.4.2
+          image: gcr.io/google-samples/microservices-demo/frontend:v0.9.0
           ports:
           - containerPort: 8080
           readinessProbe:
@@ -79,13 +79,18 @@ spec:
           - name: AD_SERVICE_ADDR
             value: "adservice:9555"
           # # ENV_PLATFORM: One of: local, gcp, aws, azure, onprem, alibaba
-          # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp 
-          # - name: ENV_PLATFORM 
+          # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp
+          # - name: ENV_PLATFORM
           #   value: "aws"
           - name: ENABLE_PROFILER
             value: "0"
           # - name: CYMBAL_BRANDING
           #   value: "true"
+          # - name: FRONTEND_MESSAGE
+          #   value: "Replace this with a message you want to display on all pages."
+          # As part of an optional Google Cloud demo, you can run an optional microservice called the "packaging service".
+          # - name: PACKAGING_SERVICE_URL
+          #   value: "" # This value would look like "http://123.123.123"
           resources:
             requests:
               cpu: 100m

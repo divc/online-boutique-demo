@@ -40,8 +40,9 @@ type platformDetails struct {
 }
 
 var (
-	isCymbalBrand = "true" == strings.ToLower(os.Getenv("CYMBAL_BRANDING"))
-	templates     = template.Must(template.New("").
+	frontendMessage = strings.TrimSpace(os.Getenv("FRONTEND_MESSAGE"))
+	isCymbalBrand   = "true" == strings.ToLower(os.Getenv("CYMBAL_BRANDING"))
+	templates       = template.Must(template.New("").
 			Funcs(template.FuncMap{
 			"renderMoney":        renderMoney,
 			"renderCurrencyLogo": renderCurrencyLogo,
@@ -116,6 +117,7 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 		"platform_name":     plat.provider,
 		"is_cymbal_brand":   isCymbalBrand,
 		"deploymentDetails": deploymentDetailsMap,
+		"frontendMessage":   frontendMessage,
 	}); err != nil {
 		log.Error(err)
 	}
@@ -176,16 +178,26 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// ignores the error retrieving recommendations since it is not critical
 	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
 	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get product recommendations"), http.StatusInternalServerError)
-		return
+		log.WithField("error", err).Warn("failed to get product recommendations")
 	}
 
 	product := struct {
 		Item  *pb.Product
 		Price *pb.Money
 	}{p, price}
+
+	// Fetch packaging info (weight/dimensions) of the product
+	// The packaging service is an optional microservice you can run as part of a Google Cloud demo.
+	var packagingInfo *PackagingInfo = nil
+	if isPackagingServiceConfigured() {
+		packagingInfo, err = httpGetPackagingInfo(id)
+		if err != nil {
+			fmt.Println("Failed to obtain product's packaging info:", err)
+		}
+	}
 
 	if err := templates.ExecuteTemplate(w, "product", map[string]interface{}{
 		"session_id":        sessionID(r),
@@ -201,6 +213,8 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		"platform_name":     plat.provider,
 		"is_cymbal_brand":   isCymbalBrand,
 		"deploymentDetails": deploymentDetailsMap,
+		"frontendMessage":   frontendMessage,
+		"packagingInfo":     packagingInfo,
 	}); err != nil {
 		log.Println(err)
 	}
@@ -256,10 +270,10 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// ignores the error retrieving recommendations since it is not critical
 	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), cartIDs(cart))
 	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get product recommendations"), http.StatusInternalServerError)
-		return
+		log.WithField("error", err).Warn("failed to get product recommendations")
 	}
 
 	shippingCost, err := fe.getShippingQuote(r.Context(), cart, currentCurrency(r))
@@ -313,6 +327,7 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 		"platform_name":     plat.provider,
 		"is_cymbal_brand":   isCymbalBrand,
 		"deploymentDetails": deploymentDetailsMap,
+		"frontendMessage":   frontendMessage,
 	}); err != nil {
 		log.Println(err)
 	}
@@ -386,6 +401,7 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 		"platform_name":     plat.provider,
 		"is_cymbal_brand":   isCymbalBrand,
 		"deploymentDetails": deploymentDetailsMap,
+		"frontendMessage":   frontendMessage,
 	}); err != nil {
 		log.Println(err)
 	}
@@ -449,6 +465,7 @@ func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWri
 		"status":            http.StatusText(code),
 		"is_cymbal_brand":   isCymbalBrand,
 		"deploymentDetails": deploymentDetailsMap,
+		"frontendMessage":   frontendMessage,
 	}); templateErr != nil {
 		log.Println(templateErr)
 	}
